@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day Tracker — 90/180 Schengen & Turkey</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #1a1e26; --border: #2a3040;
+    --text: #e8eaf0; --muted: #8b93a7; --accent: #4f9cf9;
+    --green: #34d399; --yellow: #fbbf24; --red: #f87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); padding: 16px; max-width: 860px; margin: 0 auto;
+    line-height: 1.5;
+  }
+  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  .privacy { color: var(--muted); font-size: 0.78rem; margin-bottom: 20px; }
+  .privacy b { color: var(--green); }
+  h2 { font-size: 1.05rem; margin: 24px 0 10px; color: var(--accent); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+  }
+  .card h3 { font-size: 0.95rem; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .badge { font-size: 0.68rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .badge.ok { background: rgba(52,211,153,.15); color: var(--green); }
+  .badge.warn { background: rgba(251,191,36,.15); color: var(--yellow); }
+  .badge.over { background: rgba(248,113,113,.15); color: var(--red); }
+  .big { font-size: 2rem; font-weight: 700; }
+  .big.green { color: var(--green); } .big.yellow { color: var(--yellow); } .big.red { color: var(--red); }
+  .sub { color: var(--muted); font-size: 0.8rem; margin-top: 4px; }
+  .bar { height: 8px; background: var(--border); border-radius: 4px; margin: 10px 0 6px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width .3s; }
+  form.trip-form {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 0.75rem; color: var(--muted); }
+  input, select {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 10px; border-radius: 8px; font-size: 0.9rem;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  button {
+    background: var(--accent); color: #fff; border: none; padding: 9px 18px;
+    border-radius: 8px; font-size: 0.9rem; cursor: pointer; font-weight: 600;
+  }
+  button:hover { filter: brightness(1.1); }
+  button.ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); font-weight: 400; }
+  button.danger { background: transparent; border: 1px solid var(--border); color: var(--red); }
+  button.small { padding: 4px 10px; font-size: 0.78rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 0.75rem; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  td { padding: 8px; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  .tools { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+  .result-box {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px; margin-top: 12px; font-size: 0.9rem;
+  }
+  .result-box .line { margin: 6px 0; }
+  .muted { color: var(--muted); }
+  .tag { font-size: 0.7rem; background: var(--border); padding: 2px 8px; border-radius: 8px; color: var(--muted); }
+  .open-tag { background: rgba(79,156,249,.15); color: var(--accent); }
+  .footer { margin-top: 32px; color: var(--muted); font-size: 0.72rem; border-top: 1px solid var(--border); padding-top: 12px; }
+  @media (max-width: 600px) { .big { font-size: 1.6rem; } form.trip-form { flex-direction: column; align-items: stretch; } }
+</style>
+</head>
+<body>
+<h1>🌍 Day Tracker</h1>
+<p class="privacy"><b>100% private:</b> runs entirely in your browser. No server, no account, no tracking, no analytics. Your data lives only in this device's localStorage. Export a backup anytime. Works offline after first load.</p>
+
+<h2>Current Status</h2>
+<div class="cards" id="statusCards"></div>
+
+<h2>Add a Trip</h2>
+<form class="trip-form" id="tripForm">
+  <div class="field">
+    <label>Zone</label>
+    <select id="zoneSelect"></select>
+  </div>
+  <div class="field">
+    <label>Entry date</label>
+    <input type="date" id="entryDate" required>
+  </div>
+  <div class="field">
+    <label>Exit date <span class="muted">(blank = still inside)</span></label>
+    <input type="date" id="exitDate">
+  </div>
+  <button type="submit">Add Trip</button>
+</form>
+
+<h2>Trips</h2>
+<table>
+  <thead><tr><th>Zone</th><th>Entry</th><th>Exit</th><th>Days</th><th></th></tr></thead>
+  <tbody id="tripRows"></tbody>
+</table>
+
+<h2>Planner</h2>
+<form class="trip-form" id="planForm">
+  <div class="field">
+    <label>Zone</label>
+    <select id="planZone"></select>
+  </div>
+  <div class="field">
+    <label>Planned entry</label>
+    <input type="date" id="planEntry">
+  </div>
+  <div class="field">
+    <label>Planned length (days)</label>
+    <input type="number" id="planDays" min="1" max="180" value="14">
+  </div>
+  <button type="submit">Check Plan</button>
+</form>
+<div class="result-box" id="planResult" style="display:none"></div>
+
+<h2>Data</h2>
+<div class="tools">
+  <button class="ghost small" onclick="exportData()">Export backup (JSON)</button>
+  <button class="ghost small" onclick="document.getElementById('importFile').click()">Import backup</button>
+  <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+  <button class="danger small" onclick="clearAll()">Clear all data</button>
+</div>
+
+<div class="footer">
+  <b>How the 90/180 rule works</b> (same for Schengen &amp; Turkey, US citizens): On any given day, look back exactly 180 days. Count every day you were physically inside the zone during that window — both your entry day and exit day count as full days, and even one minute past midnight counts the whole day. You may stay max 90 days in any rolling 180-day window. This tool uses the official EU "look-back" method (same logic as the European Commission's short-stay calculator and helloschengen.com).<br><br>
+  ⚠️ This is a personal aid, not legal advice. Always verify critical dates with the official <a href="https://home-affairs.ec.europa.eu/policies/schengen-borders-and-visa/border-crossing/short-stay-calculator_en" style="color:var(--accent)">EU Short-Stay Calculator</a> before travel.
+</div>
+
+<script>
+"use strict";
+const STORAGE_KEY = "daytracker_v1";
+const DEFAULT_ZONES = [
+  { id: "schengen", name: "Schengen Area", limit: 90, window: 180 },
+  { id: "turkey",   name: "Türkiye",       limit: 90, window: 180 },
+  { id: "uk",       name: "UK (180/yr*)",  limit: 180, window: 365 }
+];
+
+let state = load();
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) { const s = JSON.parse(raw); if (s.zones && s.trips) return s; }
+  } catch(e) {}
+  return { zones: DEFAULT_ZONES.slice(), trips: [] };
+}
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+function parseD(s) { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); }
+function fmtD(dt) { return dt.getFullYear() + "-" + String(dt.getMonth()+1).padStart(2,"0") + "-" + String(dt.getDate()).padStart(2,"0"); }
+function today() { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+function addDays(dt, n) { const r = new Date(dt); r.setDate(r.getDate()+n); return r; }
+function diffDays(a, b) { return Math.round((b - a) / 86400000); }
+
+function daysUsedInWindow(trips, asOf, windowDays) {
+  const ws = addDays(asOf, -(windowDays - 1));
+  let total = 0;
+  for (const t of trips) {
+    const entry = parseD(t.entry);
+    const exit  = t.exit ? parseD(t.exit) : asOf;
+    const s = entry > ws ? entry : ws;
+    const e = exit < asOf ? exit : asOf;
+    if (e >= s) total += diffDays(s, e) + 1;
+  }
+  return total;
+}
+
+function zoneTrips(zoneId) { return state.trips.filter(t => t.zone === zoneId).sort((a,b) => a.entry.localeCompare(b.entry)); }
+function isOpenInZone(zoneId) { return state.trips.some(t => t.zone === zoneId && !t.exit); }
+
+function lastLegalDay(zone, trips) {
+  if (!isOpenInZone(zone.id)) return null;
+  let day = today(), last = null;
+  for (let i = 0; i < 500; i++) {
+    const used = daysUsedInWindow(trips, day, zone.window);
+    if (used > zone.limit) return last;
+    last = day; day = addDays(day, 1);
+  }
+  return last;
+}
+
+function earliestReentry(zone, trips, fromDate, stayDays) {
+  let day = new Date(fromDate);
+  for (let i = 0; i < 800; i++) {
+    const planned = trips.concat([{ zone: zone.id, entry: fmtD(day), exit: fmtD(addDays(day, stayDays-1)) }]);
+    let ok = true;
+    for (let j = 0; j < stayDays; j++) {
+      if (daysUsedInWindow(planned, addDays(day, j), zone.window) > zone.limit) { ok = false; break; }
+    }
+    if (ok) return day;
+    day = addDays(day, 1);
+  }
+  return null;
+}
+
+function render() { renderStatus(); renderTrips(); renderZoneSelects(); }
+
+function renderStatus() {
+  const el = document.getElementById("statusCards");
+  el.innerHTML = "";
+  for (const z of state.zones) {
+    const trips = zoneTrips(z.id);
+    const used = daysUsedInWindow(trips, today(), z.window);
+    const remaining = Math.max(0, z.limit - used);
+    const pct = Math.min(100, (used / z.limit) * 100);
+    const cls = used > z.limit ? "red" : (remaining <= 10 ? "yellow" : "green");
+    const badge = used > z.limit
+      ? '<span class="badge over">OVER LIMIT</span>'
+      : (remaining <= 10 ? '<span class="badge warn">LOW</span>' : '<span class="badge ok">OK</span>');
+    const open = isOpenInZone(z.id);
+    const lld = lastLegalDay(z, trips);
+    let extra = "";
+    if (open && lld) extra = `<div class="sub">⚠️ You are <b>inside</b> ${z.name} now.<br>You must exit by <b>${fmtD(lld)}</b> (${diffDays(today(), lld)} days left).</div>`;
+    else if (!open && remaining < z.limit) {
+      const re = earliestReentry(z, trips, today(), 1);
+      if (re && fmtD(re) !== fmtD(today())) extra = `<div class="sub">Full 1-day re-entry possible: <b>${fmtD(re)}</b></div>`;
+      else if (re) extra = `<div class="sub">You may re-enter today for up to <b>${remaining}</b> day(s).</div>`;
+    }
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <h3>${z.name} ${badge}</h3>
+      <div class="big ${cls}">${used} <span style="font-size:1rem;color:var(--muted)">/ ${z.limit} days</span></div>
+      <div class="bar"><div class="bar-fill" style="width:${pct}%;background:var(--${cls})"></div></div>
+      <div class="sub">${remaining} day(s) remaining in the current ${z.window}-day window (as of ${fmtD(today())})</div>
+      ${extra}`;
+    el.appendChild(card);
+  }
+}
+
+function renderTrips() {
+  const tb = document.getElementById("tripRows");
+  tb.innerHTML = "";
+  const sorted = state.trips.slice().sort((a,b) => b.entry.localeCompare(a.entry));
+  if (!sorted.length) { tb.innerHTML = '<tr><td colspan="5" class="muted" style="padding:16px">No trips yet. Add your first trip above.</td></tr>'; return; }
+  for (const t of sorted) {
+    const z = state.zones.find(z => z.id === t.zone) || { name: t.zone };
+    const days = t.exit ? diffDays(parseD(t.entry), parseD(t.exit)) + 1 : (diffDays(parseD(t.entry), today()) + 1);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${z.name}</td>
+      <td>${t.entry}</td>
+      <td>${t.exit ? t.exit : '<span class="tag open-tag">STILL INSIDE</span>'}</td>
+      <td>${days}${t.exit ? "" : " (so far)"}</td>
+      <td>${t.exit ? "" : `<button class="small ghost" onclick="closeTrip('${t.id}')">Close out</button> `}<button class="small danger" onclick="delTrip('${t.id}')">✕</button></td>`;
+    tb.appendChild(tr);
+  }
+}
+
+function renderZoneSelects() {
+  for (const id of ["zoneSelect", "planZone"]) {
+    const sel = document.getElementById(id);
+    const cur = sel.value;
+    sel.innerHTML = state.zones.map(z => `<option value="${z.id}">${z.name} (${z.limit}/${z.window})</option>`).join("");
+    if (cur) sel.value = cur;
+  }
+}
+
+document.getElementById("tripForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const zone = document.getElementById("zoneSelect").value;
+  const entry = document.getElementById("entryDate").value;
+  const exit = document.getElementById("exitDate").value || null;
+  if (!entry) return;
+  if (exit && exit < entry) { alert("Exit date is before entry date."); return; }
+  state.trips.push({ id: "t" + Date.now() + Math.random().toString(36).slice(2,6), zone, entry, exit });
+  save(); render();
+  e.target.reset();
+  document.getElementById("entryDate").value = fmtD(today());
+});
+
+function delTrip(id) {
+  if (!confirm("Delete this trip?")) return;
+  state.trips = state.trips.filter(t => t.id !== id);
+  save(); render();
+}
+
+function closeTrip(id) {
+  const exit = prompt("Exit date (YYYY-MM-DD):", fmtD(today()));
+  if (!exit || !/^\d{4}-\d{2}-\d{2}$/.test(exit)) return;
+  const t = state.trips.find(t => t.id === id);
+  if (t && exit < t.entry) { alert("Exit before entry."); return; }
+  t.exit = exit; save(); render();
+}
+
+document.getElementById("planForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const zid = document.getElementById("planZone").value;
+  const z = state.zones.find(z => z.id === zid);
+  const entryStr = document.getElementById("planEntry").value;
+  const stay = parseInt(document.getElementById("planDays").value || "1", 10);
+  const box = document.getElementById("planResult");
+  box.style.display = "block";
+  if (!entryStr) { box.innerHTML = "Pick a planned entry date."; return; }
+  const entry = parseD(entryStr);
+  const trips = zoneTrips(zid).filter(t => !t.exit || parseD(t.exit) >= addDays(today(),-400));
+  const planned = trips.concat([{ zone: zid, entry: entryStr, exit: fmtD(addDays(entry, stay-1)) }]);
+  let ok = true, worstDay = null, worstUsed = 0;
+  for (let j = 0; j < stay; j++) {
+    const used = daysUsedInWindow(planned, addDays(entry, j), z.window);
+    if (used > worstUsed) worstUsed = used;
+    if (used > z.limit) { ok = false; if (!worstDay) worstDay = addDays(entry, j); }
+  }
+  if (ok) {
+    box.innerHTML = `<div class="line">✅ <b>This plan is legal.</b> During ${entryStr} → ${fmtD(addDays(entry, stay-1))}, your peak usage is ${worstUsed}/${z.limit} days in ${z.name}.</div>`;
+  } else {
+    const alt = earliestReentry(z, trips, entry, stay);
+    let msg = `<div class="line">❌ <b>This plan breaks the rule.</b> On ${fmtD(worstDay)} you would be at ${worstUsed}/${z.limit} days.</div>`;
+    if (alt) msg += `<div class="line">✅ Earliest you could make a ${stay}-day trip: enter on <b>${fmtD(alt)}</b>.</div>`;
+    else msg += `<div class="line muted">No legal date found within ~2 years — reduce trip length or check your history.</div>`;
+    const altShort = earliestReentry(z, trips, entry, 1);
+    if (altShort) msg += `<div class="line muted">Earliest 1-day entry: ${fmtD(altShort)}</div>`;
+    box.innerHTML = msg;
+  }
+});
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "daytracker-backup-" + fmtD(today()) + ".json";
+  a.click();
+}
+
+function importData(ev) {
+  const f = ev.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const s = JSON.parse(r.result);
+      if (!s.zones || !s.trips) throw new Error("bad file");
+      state = s; save(); render();
+      alert("Backup restored: " + s.trips.length + " trips.");
+    } catch(e) { alert("Invalid backup file."); }
+  };
+  r.readAsText(f);
+}
+
+function clearAll() {
+  if (!confirm("Delete ALL trips and zones? Export a backup first if unsure.")) return;
+  state = { zones: DEFAULT_ZONES.slice(), trips: [] };
+  save(); render();
+}
+
+document.getElementById("entryDate").value = fmtD(today());
+document.getElementById("planEntry").value = fmtD(today());
+render();
+</script>
+</body>
+</html>
